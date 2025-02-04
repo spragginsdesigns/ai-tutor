@@ -5,6 +5,7 @@ import openai
 import requests
 from datetime import datetime
 import streamlit_shadcn_ui as ui
+import re
 
 # Load environment variables and configure API
 load_dotenv()
@@ -28,78 +29,184 @@ st.markdown("""
     <style>
     /* Dark mode styles */
     .stApp {
-        background-color: #0f172a;
-        color: #e2e8f0;
+        background-color: #000000;
+        color: #ffffff;
     }
     .chat-message {
         padding: 1.5rem;
-        border-radius: 0.75rem;
+        border-radius: 1rem;
         margin-bottom: 1rem;
-        background-color: #1e293b;
-        border: 1px solid #2d3748;
+        background-color: #18181b;
+        border: 1px solid #27272a;
+        transition: all 0.3s ease;
+    }
+    .chat-message:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transform: translateY(-1px);
     }
     .study-buddy-title {
-        background: linear-gradient(135deg, #FF69B4, #9370DB);
+        background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f43f5e 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        font-size: 3rem;
+        font-size: 2.5rem;
         margin: 1.5rem 0;
         font-weight: 800;
-        text-shadow: 0 0 30px rgba(147, 112, 219, 0.3);
+        letter-spacing: -0.025em;
+        text-shadow: 0 0 30px rgba(168, 85, 247, 0.3);
+    }
+    /* Header styles */
+    header {
+        background-color: #18181b;
+        border-bottom: 1px solid #27272a;
+        padding: 1.5rem 2rem;
+        margin-bottom: 2rem;
+    }
+    header > div {
+        max-width: 1200px;
+        margin: 0 auto;
     }
     /* Style Streamlit elements */
     .stButton button {
-        background-color: #1e293b;
-        color: #e2e8f0;
-        border: 1px solid #2d3748;
+        background: linear-gradient(135deg, #a855f7, #ec4899);
+        color: white;
+        border: none;
         border-radius: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        text-transform: none;
+        letter-spacing: 0;
+    }
+    .stButton button:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+    }
+    /* Chat input styling */
+    .stChatInputContainer {
+        padding: 1rem 2rem;
+        background-color: #18181b;
+        border-top: 1px solid #27272a;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
     }
     .stTextInput input {
-        background-color: #1e293b;
-        color: #e2e8f0;
-        border: 1px solid #2d3748;
-        border-radius: 0.5rem;
-        padding: 0.75rem;
-    }
-    .stMarkdown {
-        color: #e2e8f0;
-    }
-    .element-container {
-        margin-bottom: 1rem;
-    }
-    .stSpinner {
-        text-align: center;
-    }
-    /* Card styles */
-    [data-testid="stSidebar"] {
-        background-color: #1e293b;
-        border-right: 1px solid #2d3748;
-    }
-    /* Chat container styles */
-    .stChatMessage {
-        background-color: #1e293b;
-        border: 1px solid #2d3748;
+        background-color: #27272a;
+        color: white;
+        border: 1px solid #3f3f46;
         border-radius: 0.75rem;
         padding: 1rem;
-        margin-bottom: 1rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
-    .stChatInput {
-        border-top: 1px solid #2d3748;
-        padding-top: 1rem;
+    .stTextInput input:focus {
+        border-color: #a855f7;
+        box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2);
+        background-color: #3f3f46;
     }
-    /* Remove white background from cards */
-    .st-emotion-cache-1y4p8pa {
-        background-color: transparent !important;
-        border: none !important;
-        padding: 0 !important;
+    .stTextInput input::placeholder {
+        color: #71717a;
     }
-    .st-emotion-cache-1y4p8pa > div {
-        background-color: transparent !important;
+    .stMarkdown {
+        color: white;
     }
-    /* Hide empty containers */
-    .element-container:empty {
-        display: none;
+    /* Chat message styles */
+    .stChatMessage {
+        background-color: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 1rem;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        max-width: 80%;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .stChatMessage[data-testid*="user"] {
+        margin-left: auto;
+        background-color: #27272a;
+        border-color: #3f3f46;
+    }
+    .stChatMessage:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transform: translateY(-1px);
+    }
+    /* Thinking section styles */
+    .thinking-section {
+        background-color: #27272a;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-left: 4px solid #a855f7;
+    }
+    .thinking-section::before {
+        content: "🤔 Reasoning Process";
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #a855f7;
+    }
+    /* Sidebar styles */
+    [data-testid="stSidebar"] {
+        background-color: #18181b;
+        border-right: 1px solid #27272a;
+        padding: 2rem 1rem;
+    }
+    [data-testid="stSidebar"] .stButton button {
+        width: 100%;
+        margin-top: 1rem;
+        background: linear-gradient(135deg, #a855f7, #ec4899);
+        color: white;
+        font-weight: 500;
+        padding: 0.75rem 1rem;
+    }
+    [data-testid="stSidebar"] h2 {
+        color: white;
+        font-size: 1.5rem;
+        margin-bottom: 1.5rem;
+        font-weight: 600;
+    }
+    /* Switch styles */
+    .st-emotion-cache-1c7l0gq {
+        background: #27272a;
+        border: 1px solid #3f3f46;
+        padding: 0.25rem;
+    }
+    .st-emotion-cache-1c7l0gq:hover {
+        border-color: #a855f7;
+    }
+    /* Avatar styles */
+    .avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #a855f7, #ec4899);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 1rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    /* Main content area */
+    .main .block-container {
+        padding-top: 0;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-bottom: 5rem;
+    }
+    /* Spinner styles */
+    .stSpinner {
+        text-align: center;
+        padding: 2rem;
+    }
+    .stSpinner > div {
+        border-color: #a855f7 transparent transparent transparent;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -148,8 +255,17 @@ if "messages" not in st.session_state:
 if "conversation_start" not in st.session_state:
     st.session_state.conversation_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# Title
-st.markdown("<h1 class='study-buddy-title'>👋 Welcome to Your Study Buddy!</h1>", unsafe_allow_html=True)
+# Title and Header
+st.markdown("""
+    <header>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <h1 class='study-buddy-title'>AI Study Buddy</h1>
+            </div>
+            <div class="avatar">KB</div>
+        </div>
+    </header>
+""", unsafe_allow_html=True)
 
 # Sidebar configurations
 with st.sidebar:
@@ -169,11 +285,25 @@ with st.sidebar:
         st.session_state.conversation_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.experimental_rerun()
 
+def format_message(content):
+    if "<think>" in content and "</think>" in content:
+        # Split the content into thinking and response parts
+        parts = re.split(r'<think>|</think>', content)
+        formatted_parts = []
+        for i, part in enumerate(parts):
+            if part.strip():
+                if i % 2 == 1:  # This is a thinking section
+                    formatted_parts.append(f'<div class="thinking-section">{part}</div>')
+                else:  # This is a regular response
+                    formatted_parts.append(part)
+        return "".join(formatted_parts)
+    return content
+
 # Chat interface
 # Display chat messages from history
 for message in st.session_state.messages[1:]:  # Skip the system prompt
     with st.chat_message(message["role"], avatar="🤖" if message["role"] == "assistant" else None):
-        st.markdown(message["content"])
+        st.markdown(format_message(message["content"]), unsafe_allow_html=True)
 
 # Chat input
 if prompt := st.chat_input("Ask your Study Buddy anything! 📚"):
@@ -220,7 +350,7 @@ if prompt := st.chat_input("Ask your Study Buddy anything! 📚"):
                 if response.status_code == 200:
                     answer = response.json()["choices"][0]["message"]["content"]
                     st.session_state.messages.append({"role": "assistant", "content": answer})
-                    st.markdown(answer)
+                    st.markdown(format_message(answer), unsafe_allow_html=True)
                 else:
                     ui.alert_dialog(
                         show=True,
@@ -242,7 +372,7 @@ if prompt := st.chat_input("Ask your Study Buddy anything! 📚"):
 # Footer
 st.markdown(
     """
-    <div style='text-align: center; color: #9ca3af; margin-top: 2rem;'>
+    <div style='text-align: center; color: #71717a; margin-top: 2rem; padding: 1rem; border-top: 1px solid #27272a;'>
         <small>Study Buddy is here to help you learn and grow! 🌱</small>
     </div>
     """,
