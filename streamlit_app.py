@@ -68,20 +68,26 @@ st.markdown("""
     }
     /* Style Streamlit elements */
     .stButton button {
-        background: linear-gradient(135deg, #a855f7, #ec4899);
-        color: white;
-        border: none;
-        border-radius: 0.5rem;
-        padding: 0.75rem 1.5rem;
-        font-weight: 500;
-        transition: all 0.3s ease;
-        text-transform: none;
-        letter-spacing: 0;
+        background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 1rem !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+        width: 100% !important;
     }
     .stButton button:hover {
-        opacity: 0.9;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 15px rgba(168, 85, 247, 0.3) !important;
+        background: linear-gradient(135deg, #9333ea 0%, #db2777 100%) !important;
+    }
+    .stButton button:active {
+        transform: translateY(0) !important;
     }
     /* Chat input styling */
     .stChatInputContainer {
@@ -306,26 +312,24 @@ with st.sidebar:
     st.image("https://api.dicebear.com/6.x/bottts/svg?seed=study-buddy", width=150)
     st.markdown("## Study Buddy Settings")
 
-    # Custom HTML for the new chat button
-    st.markdown("""
-        <button class="new-chat-button" id="new-chat-btn" onclick="document.dispatchEvent(new Event('new_chat_clicked'))">
-            <span>✨</span> Start New Chat
-        </button>
-        <script>
-            document.addEventListener('new_chat_clicked', function() {
-                window.streamlitApp.setComponentValue('new_chat_btn', true);
-            });
-        </script>
-    """, unsafe_allow_html=True)
+    # Chat control buttons
+    col1, col2 = st.columns(2)
 
-    new_chat_btn = st.session_state.get('new_chat_btn', False)
-    if new_chat_btn:
-        st.session_state.messages = [
-            {"role": "system", "content": st.session_state.system_prompt}
-        ]
-        st.session_state.conversation_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.new_chat_btn = False
-        st.experimental_rerun()
+    with col1:
+        if st.button("✨ New Chat", use_container_width=True):
+            st.session_state.messages = [
+                {"role": "system", "content": st.session_state.system_prompt}
+            ]
+            st.session_state.conversation_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.rerun()
+
+    with col2:
+        if st.button("🗑️ Clear", use_container_width=True):
+            st.session_state.messages = [
+                {"role": "system", "content": st.session_state.system_prompt}
+            ]
+            st.session_state.conversation_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.rerun()
 
 def format_message(content):
     if "<think>" in content and "</think>" in content:
@@ -342,6 +346,58 @@ def format_message(content):
     return content
 
 # Chat interface
+def process_message(prompt):
+    """Process user message and generate assistant response"""
+    try:
+        messages = st.session_state.messages.copy()
+        messages.append({
+            "role": "system",
+            "content": "IMPORTANT: Always use <think> tags to show your thinking and reasoning process. This is vital for the child to understand the problem and the solution. Remember to NEVER provide direct answers, only guide through the problem-solving process."
+        })
+
+        payload = {
+            "model": "deepseek-r1-distill-llama-70b",
+            "messages": messages,
+            "stream": False,
+            "max_tokens": 8000,
+            "temperature": 1,
+            "top_p": 0.9,
+            "presence_penalty": 0.6,
+            "frequency_penalty": 0.5
+        }
+
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        with st.status("Thinking... 🤔", expanded=True) as status:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                json=payload,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                answer = response.json()["choices"][0]["message"]["content"]
+                st.session_state.messages.append({"role": "assistant", "content": answer})
+                status.update(label="Done!", state="complete", expanded=False)
+                return answer
+            else:
+                status.update(label="Error!", state="error")
+                ui.alert_dialog(
+                    show=True,
+                    title="Error",
+                    description=f"Oops! Something went wrong. Let's try again! (Error: {response.status_code})",
+                    confirm_label="OK",
+                    key="error_dialog"
+                )
+                return None
+
+    except Exception as e:
+        st.error(f"Oops! Something went wrong: {str(e)}")
+        return None
+
 # Display chat messages from history
 for message in st.session_state.messages[1:]:  # Skip the system prompt
     with st.chat_message(message["role"], avatar="🤖" if message["role"] == "assistant" else None):
@@ -349,66 +405,15 @@ for message in st.session_state.messages[1:]:  # Skip the system prompt
 
 # Chat input
 if prompt := st.chat_input("Ask your Study Buddy anything! 📚"):
-    # Add user message to chat history
+    # Add user message to chat history and display it
     st.session_state.messages.append({"role": "user", "content": prompt})
-
-    # Display user message
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.write(prompt)
 
     # Generate and display assistant response
     with st.chat_message("assistant", avatar="🤖"):
-        with st.spinner("Thinking... 🤔"):
-            try:
-                messages = st.session_state.messages.copy()
-                messages.append({
-                    "role": "system",
-                    "content": "IMPORTANT: Always use <think> tags to show your thinking and reasoning process. This is vital for the child to understand the problem and the solution. Remember to NEVER provide direct answers, only guide through the problem-solving process."
-                })
-
-                payload = {
-                    "model": "deepseek-r1-distill-llama-70b",
-                    "messages": messages,
-                    "stream": False,
-                    "max_tokens": 8000,
-                    "temperature": 1,
-                    "top_p": 0.9,
-                    "presence_penalty": 0.6,
-                    "frequency_penalty": 0.5
-                }
-
-                headers = {
-                    "Authorization": f"Bearer {GROQ_API_KEY}",
-                    "Content-Type": "application/json"
-                }
-
-                response = requests.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    json=payload,
-                    headers=headers
-                )
-
-                if response.status_code == 200:
-                    answer = response.json()["choices"][0]["message"]["content"]
-                    st.session_state.messages.append({"role": "assistant", "content": answer})
-                    st.markdown(format_message(answer), unsafe_allow_html=True)
-                else:
-                    ui.alert_dialog(
-                        show=True,
-                        title="Error",
-                        description=f"Oops! Something went wrong. Let's try again! (Error: {response.status_code})",
-                        confirm_label="OK",
-                        key="error_dialog"
-                    )
-
-            except Exception as e:
-                ui.alert_dialog(
-                    show=True,
-                    title="Error",
-                    description=f"Oops! Something went wrong: {str(e)}",
-                    confirm_label="OK",
-                    key="error_dialog_exception"
-                )
+        if answer := process_message(prompt):
+            st.markdown(format_message(answer), unsafe_allow_html=True)
 
 # Footer
 st.markdown(
