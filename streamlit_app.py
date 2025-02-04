@@ -137,18 +137,10 @@ st.markdown("""
     }
     /* Thinking section styles */
     .thinking-section {
-        background-color: #27272a;
-        border-radius: 0.75rem;
-        padding: 1rem;
-        margin: 1rem 0;
-        border-left: 4px solid #a855f7;
+        display: none;  /* Hide the thinking section */
     }
     .thinking-section::before {
-        content: "🤔 Reasoning Process";
-        display: block;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        color: #a855f7;
+        display: none;  /* Hide the "🤔 Reasoning Process" label */
     }
     /* Sidebar styles */
     [data-testid="stSidebar"] {
@@ -156,13 +148,36 @@ st.markdown("""
         border-right: 1px solid #27272a;
         padding: 2rem 1rem;
     }
-    [data-testid="stSidebar"] .stButton button {
+    /* New Chat Button Styles */
+    .new-chat-button {
         width: 100%;
-        margin-top: 1rem;
-        background: linear-gradient(135deg, #a855f7, #ec4899);
+        background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
         color: white;
-        font-weight: 500;
-        padding: 0.75rem 1rem;
+        border: none;
+        border-radius: 12px;
+        padding: 1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .new-chat-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(168, 85, 247, 0.3);
+        background: linear-gradient(135deg, #9333ea 0%, #db2777 100%);
+    }
+    .new-chat-button:active {
+        transform: translateY(0);
+    }
+    .new-chat-button span {
+        font-size: 1.4rem;
+        margin-right: 0.2rem;
     }
     [data-testid="stSidebar"] h2 {
         color: white;
@@ -208,12 +223,21 @@ st.markdown("""
     .stSpinner > div {
         border-color: #a855f7 transparent transparent transparent;
     }
+    /* Remove all background from shadcn button */
+    .st-emotion-cache-1gulkj5,
+    .st-emotion-cache-1gulkj5:hover,
+    .st-emotion-cache-1gulkj5:active,
+    .st-emotion-cache-1gulkj5:focus {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # Initialize system prompt in session state
 if "system_prompt" not in st.session_state:
-    st.session_state.system_prompt = """Role: You are an encouraging, patient study buddy for 9‑year‑old Kaylei. Your goal is to nurture her curiosity, critical thinking, and confidence by guiding her to work through problems step by step rather than simply giving her the answer.
+    st.session_state.system_prompt = """Role: You are an encouraging, patient study buddy for 9‑year‑old Kaylei. Your goal is to nurture her curiosity, critical thinking, and confidence by guiding her to work through problems step by step, never providing direct answers.
 
 Core Principles:
 1. Ask, Don't Tell:
@@ -224,10 +248,10 @@ Core Principles:
     • Relate new or challenging ideas to fun, familiar examples like cookies, Robux, or building blocks.
     • Break problems into smaller, manageable parts.
 
-3. Step‑by‑Step Reasoning:
-    • Every answer must be structured in two parts:
-          (a) A thoughtful chain‑of‑thought explanation that begins with "🤔 Let me think about this…" where you clearly articulate your reasoning process.
-          (b) A final, clear answer starting with "✨ Here's my answer:" summarizing your conclusion.
+3. Step‑by‑Step Guidance:
+    • Every response must be structured in two parts:
+          (a) A thoughtful chain‑of‑thought explanation that begins with "🤔 Let me think about this…" where you guide through the problem-solving process with questions.
+          (b) A final prompt starting with "✨ Let's solve this together:" that encourages working through the solution.
     • Ask reflective questions along the way, such as "What do you think should come next?"
 
 4. Communication Style:
@@ -238,12 +262,22 @@ Core Principles:
     • If she makes a mistake or seems unsure, gently prompt her to double‑check her work or think about another approach.
     • Celebrate her progress and encourage her efforts regardless of the outcome.
 
+6. Never Give Direct Answers:
+    • Under no circumstances should you provide the final answer to any problem.
+    • Instead, guide her through the problem-solving process with questions and prompts.
+    • Help her discover the solution on her own through guided reasoning.
+
 Example Response Structure:
 User: "How do I add 88 + 90 + 20 + 45?"
 Assistant:
-    🤔 Let me think about this… First, let's consider the numbers one step at a time. How can we make adding these easier? For example, could thinking about rounding help? What might be a good strategy to simplify the process. Maybe we should group the numbers together to make it easier?
+    🤔 Let me think about this… What if we break this down into smaller parts? What numbers look like they might be easier to add together first? Do you see any numbers that might round nicely to make this easier?
 
-Remember, your role is to empower Kaylei to think critically and arrive at the solution through guided reasoning. Always wait for her input before moving on to the next step.
+    ✨ Let's solve this together:
+    • Which two numbers would you like to start with?
+    • How could we group these numbers to make them easier to add?
+    • What strategy would you use to add these numbers?
+
+Remember, your role is to empower Kaylei to think critically and arrive at the solution through guided reasoning. Never provide the answer - always wait for her input before moving to the next step.
 """
 
 # Initialize session state variables
@@ -271,18 +305,26 @@ st.markdown("""
 with st.sidebar:
     st.image("https://api.dicebear.com/6.x/bottts/svg?seed=study-buddy", width=150)
     st.markdown("## Study Buddy Settings")
-    show_reasoning = ui.switch(label="Show AI Reasoning", key="show_reasoning")
 
-    new_chat_btn = ui.button(
-        text="Start New Chat 🔄",
-        key="new_chat_btn"
-    )
+    # Custom HTML for the new chat button
+    st.markdown("""
+        <button class="new-chat-button" id="new-chat-btn" onclick="document.dispatchEvent(new Event('new_chat_clicked'))">
+            <span>✨</span> Start New Chat
+        </button>
+        <script>
+            document.addEventListener('new_chat_clicked', function() {
+                window.streamlitApp.setComponentValue('new_chat_btn', true);
+            });
+        </script>
+    """, unsafe_allow_html=True)
 
+    new_chat_btn = st.session_state.get('new_chat_btn', False)
     if new_chat_btn:
         st.session_state.messages = [
             {"role": "system", "content": st.session_state.system_prompt}
         ]
         st.session_state.conversation_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.new_chat_btn = False
         st.experimental_rerun()
 
 def format_message(content):
@@ -319,11 +361,10 @@ if prompt := st.chat_input("Ask your Study Buddy anything! 📚"):
         with st.spinner("Thinking... 🤔"):
             try:
                 messages = st.session_state.messages.copy()
-                if show_reasoning:
-                    messages.append({
-                        "role": "system",
-                        "content": "IMPORTANT: Always use <think> tags to show your thinking and reasoning process. This is vital for the child to understand the problem and the solution."
-                    })
+                messages.append({
+                    "role": "system",
+                    "content": "IMPORTANT: Always use <think> tags to show your thinking and reasoning process. This is vital for the child to understand the problem and the solution. Remember to NEVER provide direct answers, only guide through the problem-solving process."
+                })
 
                 payload = {
                     "model": "deepseek-r1-distill-llama-70b",
