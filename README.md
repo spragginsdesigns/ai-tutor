@@ -60,8 +60,8 @@ The assistant’s personality is carefully crafted to encourage learners to thin
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/your-username/ai-tutor-study-buddy.git
-   cd ai-tutor-study-buddy
+   git clone https://github.com/spragginsdesigns/ai-tutor.git
+   cd ai-tutor
    ```
 
 2. **Create a Virtual Environment (Optional but recommended):**
